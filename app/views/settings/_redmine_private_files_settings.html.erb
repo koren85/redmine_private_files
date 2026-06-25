@@ -1,0 +1,14 @@
+<table>
+  <tbody>
+    <tr>
+      <td>
+        <%= hidden_field_tag 'settings[enabled]', '0' %>
+        <label>
+          <%= check_box_tag 'settings[enabled]', '1', @settings['enabled'].to_s != '0' %>
+          <%= l(:label_private_files_enabled) %>
+        </label>
+        <em class="info"><%= l(:text_private_files_enabled_info) %></em>
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,3 @@
+en:
+  label_private_files_enabled: "Restrict files attached to private notes"
+  text_private_files_enabled_info: "When enabled, files attached inside a private note can only be viewed and downloaded by users who are allowed to view private notes (or by the author of the note)."
