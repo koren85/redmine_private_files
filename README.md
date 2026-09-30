@@ -39,6 +39,12 @@ restriction without uninstalling.
 
 ## Notes
 
-- No database migration — the plugin only reads existing tables.
+- One migration: a partial index on `journal_details (prop_key) WHERE property = 'attachment'`.
+  Every file visibility check looks up the journal that added the file; without the
+  index that lookup is a full scan of `journal_details` (~200 ms on a 4M-row table,
+  repeated for every file on every page). Run
+  `bundle exec rake redmine:plugins:migrate NAME=redmine_private_files RAILS_ENV=production`
+  after installing or upgrading. The migration builds the index `CONCURRENTLY` and
+  skips it if an index with the same name already exists.
 - In production, restart Redmine after installing or upgrading the plugin.
 - Files attached to the issue description or to **public** notes are unaffected.

@@ -47,11 +47,25 @@ module RedminePrivateFiles
   # Returns a relation over the relevant private Journal records (their user_id
   # identifies the note authors, who keep access).
   def private_journals_for(attachment)
-    return Journal.none unless attachment.container_type == 'Issue' && attachment.container_id
+    ids = private_journal_ids(attachment)
+    ids.empty? ? Journal.none : Journal.where(:id => ids)
+  end
+
+  # Ids of the private journals tied to the attachment (see private_journals_for).
+  #
+  # Memoized on the attachment instance: one page checks the same file several
+  # times (file list, "File added" history lines, thumbnails), and each check
+  # used to repeat the same lookups. The instance lives for one request only.
+  # The lookup itself relies on the partial index
+  # index_journal_details_on_prop_key_attachment (db/migrate/001) — without it
+  # every call was a full scan of journal_details (~200 ms on production).
+  def private_journal_ids(attachment)
+    return [] unless attachment.container_type == 'Issue' && attachment.container_id
+
+    memo = attachment.instance_variable_get(:@rpf_private_journal_ids)
+    return memo if memo
 
     intro = introducing_journals(attachment).select(:id, :journalized_id, :created_on, :private_notes).to_a
-    return Journal.none if intro.empty?
-
     ids = intro.select(&:private_notes?).map(&:id)
     intro.each do |j|
       ids |= Journal.where(:journalized_type => 'Issue',
@@ -60,12 +74,12 @@ module RedminePrivateFiles
                            :private_notes => true).pluck(:id)
     end
 
-    ids.empty? ? Journal.none : Journal.where(:id => ids)
+    attachment.instance_variable_set(:@rpf_private_journal_ids, ids)
   end
 
   # True when the attachment was added inside (or alongside) a private issue note.
   def added_via_private_note?(attachment)
-    private_journals_for(attachment).exists?
+    private_journal_ids(attachment).any?
   end
 
   # True when +user+ is allowed to see +attachment+ with respect to the
@@ -74,14 +88,14 @@ module RedminePrivateFiles
   def visible_to?(attachment, user)
     return true unless enabled?
 
-    private_journals = private_journals_for(attachment)
-    return true unless private_journals.exists?
+    ids = private_journal_ids(attachment)
+    return true if ids.empty?
 
     user ||= User.anonymous
     project = attachment.container.try(:project)
     return true if user.allowed_to?(:view_private_notes, project)
 
-    user.logged? && private_journals.where(:user_id => user.id).exists?
+    user.logged? && Journal.where(:id => ids, :user_id => user.id).exists?
   end
 end
 
